@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>커스텀 공지사항 알리미</title>
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background-color: #f9f9f9; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        button:disabled { background-color: #ccc; }
+        .ios-notice { display: none; background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 14px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>🏫 커스텀 공지 알리미</h2>
+        <p>알림을 받고 싶은 웹페이지 주소를 입력하세요.</p>
+        
+        <label for="url-input">모니터링할 URL:</label>
+        <input type="url" id="url-input" placeholder="https://example.com/notice" value="https://">
+        
+        <button id="btn-alert">이 사이트 알림 받기</button>
+    </div>
+
+    <div id="ios-box" class="card ios-notice">
+        💡 <b>아이폰 유저 필수 설정:</b><br>
+        현재 브라우저에서는 알림을 받을 수 없습니다.<br>
+        1. Safari 브라우저 하단의 <b>[공유]</b> 버튼을 누릅니다.<br>
+        2. <b>[홈 화면에 추가]</b>를 눌러 앱으로 설치해 주세요.<br>
+        3. 홈 화면에 생성된 앱을 켜서 다시 시도해 주세요!
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+        import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDKUA3JA9HifyIAlIQ10cQhAt1HTdL16fc",
+            authDomain: "notice-42db9.firebaseapp.com",
+            projectId: "notice-42db9",
+            storageBucket: "notice-42db9.firebasestorage.app",
+            messagingSenderId: "577597948609",
+            appId: "1:577597948609:web:afe3da019b67698a194a40",
+            measurementId: "G-7B64BXTQCK"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const messaging = getMessaging(app);
+        const db = getFirestore(app);
+
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        if (isIOS && !isStandalone) {
+            document.getElementById('ios-box').style.display = 'block';
+        }
+
+        const button = document.getElementById('btn-alert');
+        const urlInput = document.getElementById('url-input');
+
+        button.addEventListener('click', async () => {
+            const targetUrl = urlInput.value.trim();
+            if(!targetUrl || targetUrl === "https://") {
+                alert("올바른 URL 주소를 입력해 주세요.");
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                try {
+                    // 🚨 본인의 VAPID Key를 여기에 넣으세요!
+                    const currentToken = await getToken(messaging, { vapidKey: 'BFjhgF_8-0lz2jPoNYSQKYr1v_pHRB_Ec84iTELVfMKZrnamphabPLvx_V4B1zDgGvsb_2iUWGHyJHewkWyJtVQ' });
+                    if (currentToken) {
+                        console.log('FCM 기기 토큰:', currentToken);
+                        
+                        // URL에서 특수문자를 제거하고 깨지지 않는 안전한 문서 ID 생성
+                        const safeDocId = btoa(encodeURIComponent(targetUrl)).replace(/=/g, ""); 
+                        
+                        // 표준 Firestore doc 함수 사용
+                        const docRef = doc(db, "urls", safeDocId);
+                        
+                        await setDoc(docRef, {
+                            url: targetUrl,
+                            last_id: 0
+                        });
+
+                        alert(`알림 등록 및 DB 저장 완료!\n이제 크롤러가 [${targetUrl}]을 감시합니다.`);
+                    }
+                } catch (err) {
+                    console.error('에러 발생:', err);
+                    alert('등록에 실패했습니다. 키값이나 DB 권한을 확인해주세요.');
+                }
+            } else {
+                alert('알림 권한이 거부되었습니다.');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -104,12 +104,6 @@ def run_crawler():
     print("🏁 크롤러 실행 종료.")
     print("==============================================")
 
-# if __name__ == "__main__":
-    # run_crawler()
+
 if __name__ == "__main__":
-    # 원래 있던 run_crawler() 앞에 #을 붙여서 잠시 주석 처리(잠재우기) 합니다.
-    # run_crawler() 
-    
-    # 🔥 [강제 발송 치트키] 코드를 실행하자마자 인하대 알림방으로 9999번 글 알림을 쏩니다!
-    print("🚨 [TEST] 내 폰으로 진짜 크롤러 알림 강제 발송 시작...")
-    send_fcm_push("https://political.inha.ac.kr/political/7753/subview.do", 9999)
+    run_crawler() 

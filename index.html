@@ -10,11 +10,14 @@
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
         input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
         button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        button:disabled { background-color: #ccc; }
-        .ios-notice { display: none; background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 14px; margin-top: 15px; }
+        .redirect-notice { display: none; background-color: #e2f0d9; color: #385723; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 20px; }
     </style>
 </head>
 <body>
+
+    <div id="redirect-box" class="redirect-notice">
+        🔄 잠시 후 해당 공지사항 상세 페이지로 이동합니다...
+    </div>
 
     <div class="card">
         <h2>🏫 커스텀 공지 알리미</h2>
@@ -26,18 +29,30 @@
         <button id="btn-alert">이 사이트 알림 받기</button>
     </div>
 
-    <div id="ios-box" class="card ios-notice">
+    <div id="ios-box" class="card ios-notice" style="display:none; background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 14px; margin-top: 15px;">
         💡 <b>아이폰 유저 필수 설정:</b><br>
-        현재 브라우저에서는 알림을 받을 수 없습니다.<br>
-        1. Safari 브라우저 하단의 <b>[공유]</b> 버튼을 누릅니다.<br>
-        2. <b>[홈 화면에 추가]</b>를 눌러 앱으로 설치해 주세요.<br>
-        3. 홈 화면에 생성된 앱을 켜서 다시 시도해 주세요!
+        Safari 하단의 [공유] ➡️ [홈 화면에 추가] 후 앱으로 켜주세요!
     </div>
+
+    <script>
+        // 🚨 [핵심] 페이지가 켜지자마자 주소창에 ?redirect=학교주소 가 있는지 확인
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectTarget = urlParams.get('redirect');
+        
+        if (redirectTarget) {
+            // 안내 문구 표시
+            document.getElementById('redirect-box').style.display = 'block';
+            // 0.8초 뒤에 해당 학교 공지사항 진짜 링크로 자동 이동!
+            setTimeout(() => {
+                window.location.href = decodeURIComponent(redirectTarget);
+            }, 800);
+        }
+    </script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-        import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
+        import { getFirestore, doc, setDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDKUA3JA9HifyIAlIQ10cQhAt1HTdL16fc",
@@ -53,14 +68,22 @@
         const messaging = getMessaging(app);
         const db = getFirestore(app);
 
+        onMessage(messaging, (payload) => {
+            console.log('포그라운드 메시지:', payload);
+            const { title, body, click_action } = payload.notification || {};
+            if (confirm(`🔔 ${title}\n${body}\n\n이동하시겠습니까?`)) {
+                if (click_action) window.location.href = click_action;
+            }
+        });
+
+        const button = document.getElementById('btn-alert');
+        const urlInput = document.getElementById('url-input');
+
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
         if (isIOS && !isStandalone) {
             document.getElementById('ios-box').style.display = 'block';
         }
-
-        const button = document.getElementById('btn-alert');
-        const urlInput = document.getElementById('url-input');
 
         button.addEventListener('click', async () => {
             const targetUrl = urlInput.value.trim();
@@ -72,30 +95,22 @@
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 try {
-                    // 🚨 본인의 VAPID Key를 여기에 넣으세요!
                     const currentToken = await getToken(messaging, { vapidKey: 'BFjhgF_8-0lz2jPoNYSQKYr1v_pHRB_Ec84iTELVfMKZrnamphabPLvx_V4B1zDgGvsb_2iUWGHyJHewkWyJtVQ' });
                     if (currentToken) {
-                        console.log('FCM 기기 토큰:', currentToken);
-                        
-                        // URL에서 특수문자를 제거하고 깨지지 않는 안전한 문서 ID 생성
                         const safeDocId = btoa(encodeURIComponent(targetUrl)).replace(/=/g, ""); 
-                        
-                        // 표준 Firestore doc 함수 사용
                         const docRef = doc(db, "urls", safeDocId);
                         
                         await setDoc(docRef, {
                             url: targetUrl,
-                            last_id: 0
-                        });
+                            tokens: arrayUnion(currentToken)
+                        }, { merge: true });
 
-                        alert(`알림 등록 및 DB 저장 완료!\n이제 크롤러가 [${targetUrl}]을 감시합니다.`);
+                        alert("알림 등록이 완료되었습니다!");
                     }
                 } catch (err) {
-                    console.error('에러 발생:', err);
-                    alert('등록에 실패했습니다. 키값이나 DB 권한을 확인해주세요.');
+                    console.error('에러:', err);
+                    alert('등록 실패.');
                 }
-            } else {
-                alert('알림 권한이 거부되었습니다.');
             }
         });
     </script>

@@ -1,8 +1,6 @@
-// 제공해주신 12.14.0 버전에 맞춘 compat(호환) 라이브러리 로드
 importScripts('https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging-compat.js');
 
-// 제공해주신 회원님의 실제 설정값 적용 완료
 firebase.initializeApp({
     apiKey: "AIzaSyDKUA3JA9HifyIAlIQ10cQhAt1HTdL16fc",
     authDomain: "notice-42db9.firebaseapp.com",
@@ -15,16 +13,31 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// 앱이 꺼져있을 때(백그라운드) 푸시 알림이 오면 화면에 팝업을 띄우는 로직
-messaging.onBackgroundMessage((payload) => {
-    console.log('[firebase-messaging-sw.js] 백그라운드 메시지 수신: ', payload);
+// 알림 배너 클릭 시 우리 웹페이지를 먼저 열고, 학교 주소를 쿼리스트링으로 전달
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    
+    const schoolUrl = event.notification.data?.click_action || event.notification.click_action || '';
+    
+    // 🚨 내 Vercel 앱 주소 뒤에 학교 링크를 매달아서 엽니다.
+    let ourAppUrl = 'https://notice-jet.vercel.app/'; 
+    if (schoolUrl) {
+        ourAppUrl += '?redirect=' + encodeURIComponent(schoolUrl);
+    }
 
-    const notificationTitle = payload.notification.title;
-    const notificationOptions = {
-        body: payload.notification.body,
-        // 기본 알림 아이콘
-        icon: 'https://cdn-icons-png.flaticon.com/512/3602/3602149.png' 
-    };
-
-    self.registration.showNotification(notificationTitle, notificationOptions);
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+            // 이미 켜져 있는 우리 앱 탭이 있다면 그리로 가고, 없다면 새로 엽니다.
+            for (let i = 0; i < clientList.length; i++) {
+                let client = clientList[i];
+                if ('focus' in client) {
+                    client.navigate(ourAppUrl);
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(ourAppUrl);
+            }
+        })
+    );
 });

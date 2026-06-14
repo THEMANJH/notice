@@ -41,3 +41,24 @@ self.addEventListener('notificationclick', function(event) {
         })
     );
 });
+
+// 알림을 클릭했을 때 발생하는 이벤트 리스너
+self.addEventListener('notificationclick', function(event) {
+    console.log('[Service Worker] 알림 클릭 감지!', event);
+    
+    // 1. 클릭한 알림 배너를 화면에서 닫아줍니다.
+    event.notification.close();
+
+    // 2. 파이썬 크롤러가 보낸 data 안의 click_action(이동할 주소)을 꺼냅니다.
+    let targetUrl = '/';
+    if (event.notification.data && event.notification.data.click_action) {
+        targetUrl = event.notification.data.click_action;
+    } else if (event.notification.data && event.notification.data.FCM_MSG && event.notification.data.FCM_MSG.data && event.notification.data.FCM_MSG.data.click_action) {
+        targetUrl = event.notification.data.FCM_MSG.data.click_action;
+    }
+
+    // 3. 핸드폰 브라우저 새 창을 열어 해당 주소로 강제 이동시킵니다.
+    event.waitUntil(
+        clients.openWindow(targetUrl)
+    );
+});

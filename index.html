@@ -6,12 +6,12 @@
     <title>커스텀 공지사항 알리미</title>
     <link rel="manifest" href="/manifest.json">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background-color: #f9f9f9; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background-color: #f9f9f9; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        /* 닉네임 라벨 스타일 추가 */
         label { font-size: 14px; font-weight: bold; color: #333; display: block; margin-top: 10px; }
         input { width: 100%; padding: 10px; margin: 8px 0 15px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
         button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        button:hover { background-color: #0056b3; }
         .redirect-notice { display: none; background-color: #e2f0d9; color: #385723; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 20px; }
     </style>
 </head>
@@ -22,25 +22,41 @@
     </div>
 
     <div class="card">
-        <h2>🔔 공지사항 알림 피드 등록</h2>
+        <h2>🏫 커스텀 공지 알리미</h2>
+        <p>알림을 받고 싶은 웹페이지 주소를 입력하세요.</p>
         
-        <label for="nickname">👤 구독자 닉네임 (알아보기 쉬운 이름)</label>
-        <input type="text" id="nickname" placeholder="예: 내폰, 홍길동, 과사무실" value="">
+        <label for="nickname">👤 구독자 닉네임 (선택)</label>
+        <input type="text" id="nickname" placeholder="예: 내 아이폰, 홍길동" value="">
 
-        <label for="url-input">🔗 모니터링할 게시판 URL</label>
-        <input type="text" id="url-input" placeholder="https://political.inha.ac.kr/..." value="https://political.inha.ac.kr/political/7753/subview.do?enc=Zm5jdDF8QEB8JTJGYmJzJTJGcG9saXRpY2FsJTJGMTk0OCUyRmFydGNsTGlzdC5kbyUzRg%3D%3D">
+        <label for="url-input">🔗 모니터링할 URL:</label>
+        <input type="url" id="url-input" placeholder="https://example.com/notice" value="https://">
         
-        <button id="subscribe-btn">이 사이트 알림 받기</button>
+        <button id="btn-alert">이 사이트 알림 받기</button>
     </div>
 
-    <div id="ios-box" class="card" style="display:none; background-color: #fff3cd; color: #856404;">
-        ℹ️ <b>아이폰(iOS) 유저 안내:</b><br>
-        하단의 [공유] 버튼을 누른 뒤 <b>[홈 화면에 추가]</b>를 먼저 진행해 주세요. 홈 화면에 추가된 앱으로 접속해야 알림을 정상적으로 받을 수 있습니다.
+    <div id="ios-box" class="card ios-notice" style="display:none; background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 14px; margin-top: 15px;">
+        💡 <b>아이폰 유저 필수 설정:</b><br>
+        Safari 하단의 [공유] ➡️ [홈 화면에 추가] 후 앱으로 켜주세요!
     </div>
+
+    <script>
+        // 🚨 [핵심] 페이지가 켜지자마자 주소창에 ?redirect=학교주소 가 있는지 확인
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectTarget = urlParams.get('redirect');
+        
+        if (redirectTarget) {
+            // 안내 문구 표시
+            document.getElementById('redirect-box').style.display = 'block';
+            // 0.8초 뒤에 해당 학교 공지사항 진짜 링크로 자동 이동!
+            setTimeout(() => {
+                window.location.href = decodeURIComponent(redirectTarget);
+            }, 800);
+        }
+    </script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-        import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
+        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
         import { getFirestore, doc, setDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -57,67 +73,73 @@
         const messaging = getMessaging(app);
         const db = getFirestore(app);
 
-        // 1. [리다이렉트 로직] 워프 주소가 넘어왔는지 확인
-        const urlParams = new URLSearchParams(window.location.search);
-        const redirectUrl = urlParams.get('redirect');
-        if (redirectUrl) {
-            document.getElementById('redirect-box').style.display = 'block';
-            setTimeout(() => {
-                window.location.href = redirectUrl;
-            }, 800);
-        }
+        onMessage(messaging, (payload) => {
+            console.log('포그라운드 메시지:', payload);
+            const { title, body, click_action } = payload.notification || {};
+            if (confirm(`🔔 ${title}\n${body}\n\n이동하시겠습니까?`)) {
+                if (click_action) window.location.href = click_action;
+            }
+        });
 
-        // 2. 아이폰(PWA) 감지 및 수동 안내창 띄우기
+        const button = document.getElementById('btn-alert');
+        const urlInput = document.getElementById('url-input');
+        const nicknameInput = document.getElementById('nickname'); // 🚨 닉네임 가져오기
+
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
         if (isIOS && !isStandalone) {
             document.getElementById('ios-box').style.display = 'block';
         }
 
-        // 3. 알림 등록 이벤트
-        const button = document.getElementById('subscribe-btn');
-        const urlInput = document.getElementById('url-input');
-        const nicknameInput = document.getElementById('nickname');
-
         button.addEventListener('click', async () => {
             const targetUrl = urlInput.value.trim();
-            const nickname = nicknameInput.value.trim() || "익명 기기"; // 빈칸이면 기본값
+            const nickname = nicknameInput.value.trim() || "익명 기기"; // 빈칸이면 '익명 기기'로 저장
 
             if(!targetUrl || targetUrl === "https://") {
                 alert("올바른 URL 주소를 입력해 주세요.");
                 return;
             }
 
-            const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-                try {
+            try {
+                // 🚨 버그 해결: 현재 권한 상태를 먼저 체크합니다.
+                let permission = Notification.permission;
+                
+                // 아직 권한을 묻지 않은 상태일 때만 권한 요청 창을 띄웁니다.
+                if (permission !== 'granted' && permission !== 'denied') {
+                    permission = await Notification.requestPermission();
+                }
+
+                if (permission === 'granted') {
                     const currentToken = await getToken(messaging, { vapidKey: 'BFjhgF_8-0lz2jPoNYSQKYr1v_pHRB_Ec84iTELVfMKZrnamphabPLvx_V4B1zDgGvsb_2iUWGHyJHewkWyJtVQ' });
+                    
                     if (currentToken) {
-                        // URL 주소를 Base64로 인코딩하여 문서 ID 생성
-                        const safeDocId = btoa(encodeURIComponent(targetUrl)).replace(/=/g, \"\"); 
-                        const docRef = doc(db, \"urls\", safeDocId);
+                        const safeDocId = btoa(encodeURIComponent(targetUrl)).replace(/=/g, ""); 
+                        const docRef = doc(db, "urls", safeDocId);
                         
-                        // 🚨 닉네임과 토큰을 하나의 객체로 묶어서 배열에 저장
+                        // 🚨 닉네임 데이터 포장
                         const subscriptionData = {
                             nickname: nickname,
                             token: currentToken,
                             registeredAt: new Date().toISOString()
                         };
-                        
+
                         await setDoc(docRef, {
                             url: targetUrl,
-                            // 나중에 파이썬 크롤러가 편하게 보낼 수 있게 tokens 배열 구조도 유지하되, 
-                            // 기기 식별을 위한 subscriptions 상세 정보도 함께 누적합니다.
                             tokens: arrayUnion(currentToken),
-                            subscriptions: arrayUnion(subscriptionData)
+                            subscriptions: arrayUnion(subscriptionData) // 파이어베이스에 닉네임 함께 저장!
                         }, { merge: true });
 
+                        // 이제 버튼 멈춤 현상 없이 메시지가 무조건 뜹니다.
                         alert(`[${nickname}] 이름으로 알림 등록이 완료되었습니다!`);
+                    } else {
+                        alert("토큰을 가져오지 못했습니다. 브라우저 알림 설정을 확인해주세요.");
                     }
-                } catch (err) {
-                    console.error('에러:', err);
-                    alert('등록 실패.');
+                } else {
+                    alert("알림 권한이 거부되었습니다. 브라우저 설정에서 알림을 허용해주세요.");
                 }
+            } catch (err) {
+                console.error('에러:', err);
+                alert('등록 실패: ' + err.message);
             }
         });
     </script>

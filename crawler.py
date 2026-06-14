@@ -79,7 +79,8 @@ def send_multicast_push(tokens, notice_id, target_link):
             tokens=tokens
         )
         
-        response = messaging.send_multicast(message)
+        # 🚨 [여기 수정됨!!] 최신 파이썬 라이브러리 규격에 맞춰 함수 이름 변경
+        response = messaging.send_each_for_multicast(message)
         print(f"🚀 [FCM SUCCESS] {response.success_count}개의 기기에 알림 발송 성공! (실패: {response.failure_count})")
         
     except Exception as e:

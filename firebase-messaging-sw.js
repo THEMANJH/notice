@@ -13,36 +13,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// 알림 배너 클릭 시 우리 웹페이지를 먼저 열고, 학교 주소를 쿼리스트링으로 전달
-self.addEventListener('notificationclick', function(event) {
-    event.notification.close();
-    
-    const schoolUrl = event.notification.data?.click_action || event.notification.click_action || '';
-    
-    // 🚨 내 Vercel 앱 주소 뒤에 학교 링크를 매달아서 엽니다.
-    let ourAppUrl = 'https://notice-jet.vercel.app/'; 
-    if (schoolUrl) {
-        ourAppUrl += '?redirect=' + encodeURIComponent(schoolUrl);
-    }
-
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-            // 이미 켜져 있는 우리 앱 탭이 있다면 그리로 가고, 없다면 새로 엽니다.
-            for (let i = 0; i < clientList.length; i++) {
-                let client = clientList[i];
-                if ('focus' in client) {
-                    client.navigate(ourAppUrl);
-                    return client.focus();
-                }
-            }
-            if (clients.openWindow) {
-                return clients.openWindow(ourAppUrl);
-            }
-        })
-    );
-});
-
-// 알림을 클릭했을 때 발생하는 이벤트 리스너
+// 🚨 중복을 제거한 단 하나의 완벽한 워프 코드!
 self.addEventListener('notificationclick', function(event) {
     console.log('[Service Worker] 알림 클릭 감지!', event);
     
@@ -57,7 +28,7 @@ self.addEventListener('notificationclick', function(event) {
         targetUrl = event.notification.data.FCM_MSG.data.click_action;
     }
 
-    // 3. 핸드폰 브라우저 새 창을 열어 해당 주소로 강제 이동시킵니다.
+    // 3. 핸드폰 브라우저 새 창을 열어 공지사항 주소로 강제 이동시킵니다!
     event.waitUntil(
         clients.openWindow(targetUrl)
     );

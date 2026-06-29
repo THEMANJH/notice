@@ -8,11 +8,17 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background-color: #f9f9f9; }
         .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        /* 닉네임 라벨 스타일 추가 */
         label { font-size: 14px; font-weight: bold; color: #333; display: block; margin-top: 10px; }
         input { width: 100%; padding: 10px; margin: 8px 0 15px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
         button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         .redirect-notice { display: none; background-color: #e2f0d9; color: #385723; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 20px; }
+        
+        /* 📱 가이드 박스 UI 스타일 추가 */
+        .guide-section { background-color: #f1f3f5; padding: 15px; border-radius: 8px; margin-top: 20px; }
+        .guide-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #495057; text-align: center; }
+        .guide-box { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 10px; line-height: 1.5; }
+        .ios-guide { background-color: #e3f2fd; color: #0d47a1; border-left: 4px solid #1976d2; }
+        .android-guide { background-color: #e8f5e9; color: #1b5e20; border-left: 4px solid #388e3c; margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -26,7 +32,7 @@
         <p>알림을 받고 싶은 웹페이지 주소를 입력하세요.</p>
         
         <label for="nickname">👤 구독자 닉네임 (선택)</label>
-        <input type="text" id="nickname" placeholder="예: 내 아이폰, 홍길동" value="">
+        <input type="text" id="nickname" placeholder="예: 내 폰, 홍길동" value="">
 
         <label for="url-input">🔗 모니터링할 URL:</label>
         <input type="url" id="url-input" placeholder="https://example.com/notice" value="https://">
@@ -34,20 +40,27 @@
         <button id="btn-alert">이 사이트 알림 받기</button>
     </div>
 
-    <div id="ios-box" class="card ios-notice" style="display:none; background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; font-size: 14px; margin-top: 15px;">
-        💡 <b>아이폰 유저 필수 설정:</b><br>
-        Safari 하단의 [공유] ➡️ [홈 화면에 추가] 후 앱으로 켜주세요!
+    <div class="card guide-section">
+        <div class="guide-title">💡 앱처럼 바탕화면에 추가하기 (권장)</div>
+        
+        <div class="guide-box ios-guide">
+            🍎 <b>아이폰 (iOS) 유저 필수</b><br>
+            Safari 브라우저 하단의 <b>[공유]</b> 아이콘 ➡️ <b>[홈 화면에 추가]</b> 후, 바탕화면에 생긴 앱으로 켜주세요.
+        </div>
+        
+        <div class="guide-box android-guide">
+            🤖 <b>갤럭시 (Android) 유저</b><br>
+            Chrome/삼성인터넷 우측 <b>[메뉴(⋮/☰)]</b> ➡️ <b>[홈 화면에 추가]</b> 또는 <b>[앱 설치]</b>를 누르면 더 쾌적합니다.
+        </div>
     </div>
 
     <script>
-        // 🚨 [핵심] 페이지가 켜지자마자 주소창에 ?redirect=학교주소 가 있는지 확인
+        // 🚨 앱이 켜질 때 주소에 ?redirect= 가 있으면 공지사항으로 워프!
         const urlParams = new URLSearchParams(window.location.search);
         const redirectTarget = urlParams.get('redirect');
         
         if (redirectTarget) {
-            // 안내 문구 표시
             document.getElementById('redirect-box').style.display = 'block';
-            // 0.8초 뒤에 해당 학교 공지사항 진짜 링크로 자동 이동!
             setTimeout(() => {
                 window.location.href = decodeURIComponent(redirectTarget);
             }, 800);
@@ -83,17 +96,13 @@
 
         const button = document.getElementById('btn-alert');
         const urlInput = document.getElementById('url-input');
-        const nicknameInput = document.getElementById('nickname'); // 🚨 닉네임 가져오기
+        const nicknameInput = document.getElementById('nickname');
 
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-        if (isIOS && !isStandalone) {
-            document.getElementById('ios-box').style.display = 'block';
-        }
+        // (기존에 있던 isIOS 기종 검사 로직은 완전히 삭제되었습니다!)
 
         button.addEventListener('click', async () => {
             const targetUrl = urlInput.value.trim();
-            const nickname = nicknameInput.value.trim() || "익명 기기"; // 빈칸이면 '익명 기기'로 저장
+            const nickname = nicknameInput.value.trim() || "익명 기기";
 
             if(!targetUrl || targetUrl === "https://") {
                 alert("올바른 URL 주소를 입력해 주세요.");
@@ -101,10 +110,7 @@
             }
 
             try {
-                // 🚨 버그 해결: 현재 권한 상태를 먼저 체크합니다.
                 let permission = Notification.permission;
-                
-                // 아직 권한을 묻지 않은 상태일 때만 권한 요청 창을 띄웁니다.
                 if (permission !== 'granted' && permission !== 'denied') {
                     permission = await Notification.requestPermission();
                 }
@@ -116,7 +122,6 @@
                         const safeDocId = btoa(encodeURIComponent(targetUrl)).replace(/=/g, ""); 
                         const docRef = doc(db, "urls", safeDocId);
                         
-                        // 🚨 닉네임 데이터 포장
                         const subscriptionData = {
                             nickname: nickname,
                             token: currentToken,
@@ -126,10 +131,9 @@
                         await setDoc(docRef, {
                             url: targetUrl,
                             tokens: arrayUnion(currentToken),
-                            subscriptions: arrayUnion(subscriptionData) // 파이어베이스에 닉네임 함께 저장!
+                            subscriptions: arrayUnion(subscriptionData)
                         }, { merge: true });
 
-                        // 이제 버튼 멈춤 현상 없이 메시지가 무조건 뜹니다.
                         alert(`[${nickname}] 이름으로 알림 등록이 완료되었습니다!`);
                     } else {
                         alert("토큰을 가져오지 못했습니다. 브라우저 알림 설정을 확인해주세요.");

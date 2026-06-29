@@ -11,14 +11,27 @@
         label { font-size: 14px; font-weight: bold; color: #333; display: block; margin-top: 10px; }
         input { width: 100%; padding: 10px; margin: 8px 0 15px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
         button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        #btn-history { background-color: #6c757d; } /* 회색 버튼 */
+        
         .redirect-notice { display: none; background-color: #e2f0d9; color: #385723; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 20px; }
         
-        /* 📱 가이드 박스 UI 스타일 추가 */
+        /* 기종별 가이드 */
         .guide-section { background-color: #f1f3f5; padding: 15px; border-radius: 8px; margin-top: 20px; }
         .guide-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #495057; text-align: center; }
         .guide-box { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 10px; line-height: 1.5; }
         .ios-guide { background-color: #e3f2fd; color: #0d47a1; border-left: 4px solid #1976d2; }
         .android-guide { background-color: #e8f5e9; color: #1b5e20; border-left: 4px solid #388e3c; margin-bottom: 0; }
+
+        /* 🚨 팝업(모달) 스타일 추가 */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fff; margin: 15% auto; padding: 20px; border-radius: 12px; width: 85%; max-width: 400px; max-height: 70vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; }
+        .close-btn { position: absolute; right: 20px; top: 15px; color: #aaa; font-size: 24px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover { color: #000; }
+        .history-item { padding: 15px 0; border-bottom: 1px solid #eee; cursor: pointer; transition: background-color 0.2s; }
+        .history-item:hover { background-color: #f8f9fa; }
+        .history-item:last-child { border-bottom: none; }
+        .history-title { font-weight: bold; font-size: 15px; color: #333; margin-bottom: 6px; }
+        .history-meta { font-size: 12px; color: #888; }
     </style>
 </head>
 <body>
@@ -35,27 +48,34 @@
         <input type="text" id="nickname" placeholder="예: 내 폰, 홍길동" value="">
 
         <label for="url-input">🔗 모니터링할 URL:</label>
-        <input type="url" id="url-input" placeholder="https://example.com/notice" value="https://">
+        <input type="url" id="url-input" placeholder="https://example.com/notice" value="https://political.inha.ac.kr/political/7753/subview.do?enc=Zm5jdDF8QEB8JTJGYmJzJTJGcG9saXRpY2FsJTJGMTk0OCUyRmFydGNsTGlzdC5kbyUzRg%3D%3D">
         
         <button id="btn-alert">이 사이트 알림 받기</button>
+        <button id="btn-history">🗂️ 지난 알림 보기</button>
     </div>
 
     <div class="card guide-section">
-        <div class="guide-title">💡 앱처럼 바탕화면에 추가하기 (필수)</div>
-        
+        <div class="guide-title">💡 앱처럼 바탕화면에 추가하기 (권장)</div>
         <div class="guide-box ios-guide">
             🍎 <b>아이폰 (iOS) 유저 필수</b><br>
             Safari 브라우저 하단의 <b>[공유]</b> 아이콘 ➡️ <b>[홈 화면에 추가]</b> 후, 바탕화면에 생긴 앱으로 켜주세요.
         </div>
-        
         <div class="guide-box android-guide">
             🤖 <b>갤럭시 (Android) 유저</b><br>
             Chrome/삼성인터넷 우측 <b>[메뉴(⋮/☰)]</b> ➡️ <b>[홈 화면에 추가]</b> 또는 <b>[앱 설치]</b>를 누르면 더 쾌적합니다.
         </div>
     </div>
 
+    <div id="history-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3 style="margin-top: 0;">🗂️ 최근 알림 내역</h3>
+            <div id="history-list">
+                </div>
+        </div>
+    </div>
+
     <script>
-        // 🚨 앱이 켜질 때 주소에 ?redirect= 가 있으면 공지사항으로 워프!
         const urlParams = new URLSearchParams(window.location.search);
         const redirectTarget = urlParams.get('redirect');
         
@@ -70,7 +90,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
-        import { getFirestore, doc, setDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, arrayUnion, getDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js"; // 🚨 getDoc 추가됨
 
         const firebaseConfig = {
             apiKey: "AIzaSyDKUA3JA9HifyIAlIQ10cQhAt1HTdL16fc",
@@ -87,20 +107,18 @@
         const db = getFirestore(app);
 
         onMessage(messaging, (payload) => {
-            console.log('포그라운드 메시지:', payload);
             const { title, body, click_action } = payload.notification || {};
             if (confirm(`🔔 ${title}\n${body}\n\n이동하시겠습니까?`)) {
                 if (click_action) window.location.href = click_action;
             }
         });
 
-        const button = document.getElementById('btn-alert');
+        const btnAlert = document.getElementById('btn-alert');
         const urlInput = document.getElementById('url-input');
         const nicknameInput = document.getElementById('nickname');
 
-        // (기존에 있던 isIOS 기종 검사 로직은 완전히 삭제되었습니다!)
-
-        button.addEventListener('click', async () => {
+        // 알림 받기 이벤트
+        btnAlert.addEventListener('click', async () => {
             const targetUrl = urlInput.value.trim();
             const nickname = nicknameInput.value.trim() || "익명 기기";
 
@@ -135,15 +153,73 @@
                         }, { merge: true });
 
                         alert(`[${nickname}] 이름으로 알림 등록이 완료되었습니다!`);
-                    } else {
-                        alert("토큰을 가져오지 못했습니다. 브라우저 알림 설정을 확인해주세요.");
                     }
-                } else {
-                    alert("알림 권한이 거부되었습니다. 브라우저 설정에서 알림을 허용해주세요.");
                 }
             } catch (err) {
-                console.error('에러:', err);
                 alert('등록 실패: ' + err.message);
+            }
+        });
+
+        // 🚨 모달(팝업) 관련 이벤트 처리
+        const btnHistory = document.getElementById('btn-history');
+        const modal = document.getElementById('history-modal');
+        const closeBtn = document.querySelector('.close-btn');
+        const historyList = document.getElementById('history-list');
+
+        btnHistory.addEventListener('click', async () => {
+            const targetUrl = urlInput.value.trim();
+            if(!targetUrl || targetUrl === "https://") return;
+
+            // 창을 열고 로딩 표시
+            modal.style.display = 'block';
+            historyList.innerHTML = '<p style="text-align:center; color:#666;">데이터를 불러오는 중입니다...</p>';
+
+            try {
+                const safeDocId = btoa(encodeURIComponent(targetUrl)).replace(/=/g, ""); 
+                const docRef = doc(db, "urls", safeDocId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const history = data.history || [];
+
+                    if (history.length === 0) {
+                        historyList.innerHTML = '<p style="text-align:center; color:#666;">아직 수집된 알림 내역이 없습니다.</p>';
+                    } else {
+                        // 가장 최근 알림이 맨 위로 오도록 정렬(역순)
+                        history.sort((a, b) => b.id - a.id);
+                        
+                        // HTML 리스트로 그려주기
+                        historyList.innerHTML = history.map(item => {
+                            // 시간 예쁘게 포맷팅
+                            const dateObj = new Date(item.timestamp);
+                            const timeStr = `${dateObj.getMonth()+1}월 ${dateObj.getDate()}일 ${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+                            
+                            return `
+                            <div class="history-item" onclick="window.location.href='${item.link}'">
+                                <div class="history-title">${item.title}</div>
+                                <div class="history-meta">NO.${item.id} | 🕒 ${timeStr}</div>
+                            </div>
+                            `;
+                        }).join('');
+                    }
+                } else {
+                    historyList.innerHTML = '<p style="text-align:center; color:#666;">해당 게시판은 아직 등록되지 않았습니다.</p>';
+                }
+            } catch (err) {
+                historyList.innerHTML = '<p style="text-align:center; color:red;">데이터를 불러오는데 실패했습니다.</p>';
+            }
+        });
+
+        // X 버튼 누르면 닫기
+        closeBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        // 팝업 바깥 까만 배경 누르면 닫기
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
             }
         });
     </script>

@@ -15,14 +15,14 @@
         
         .redirect-notice { display: none; background-color: #e2f0d9; color: #385723; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 20px; }
         
-        /* 기종별 가이드 */
+        /* 기종별 상시 안내 가이드 */
         .guide-section { background-color: #f1f3f5; padding: 15px; border-radius: 8px; margin-top: 20px; }
         .guide-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; color: #495057; text-align: center; }
         .guide-box { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 10px; line-height: 1.5; }
         .ios-guide { background-color: #e3f2fd; color: #0d47a1; border-left: 4px solid #1976d2; }
         .android-guide { background-color: #e8f5e9; color: #1b5e20; border-left: 4px solid #388e3c; margin-bottom: 0; }
 
-        /* 🚨 팝업(모달) 스타일 추가 */
+        /* 모달(팝업) 스타일 */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fff; margin: 15% auto; padding: 20px; border-radius: 12px; width: 85%; max-width: 400px; max-height: 70vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; }
         .close-btn { position: absolute; right: 20px; top: 15px; color: #aaa; font-size: 24px; font-weight: bold; cursor: pointer; }
@@ -36,10 +36,12 @@
 </head>
 <body>
 
+    <!-- 🔄 워프 안내 배너 -->
     <div id="redirect-box" class="redirect-notice">
         🔄 잠시 후 해당 공지사항 상세 페이지로 이동합니다...
     </div>
 
+    <!-- 🎯 메인 등록 카드 -->
     <div class="card">
         <h2>🏫 커스텀 공지 알리미</h2>
         <p>알림을 받고 싶은 웹페이지 주소를 입력하세요.</p>
@@ -54,8 +56,9 @@
         <button id="btn-history">🗂️ 지난 알림 보기</button>
     </div>
 
+    <!-- 📱 기종별 바탕화면 추가 가이드 -->
     <div class="card guide-section">
-        <div class="guide-title">💡 앱처럼 바탕화면에 추가하기 (필수)</div>
+        <div class="guide-title">💡 앱처럼 바탕화면에 추가하기 (권장)</div>
         <div class="guide-box ios-guide">
             🍎 <b>아이폰 (iOS) 유저 필수</b><br>
             Safari 브라우저 하단의 <b>[공유]</b> 아이콘 ➡️ <b>[홈 화면에 추가]</b> 후, 바탕화면에 생긴 앱으로 켜주세요.
@@ -66,31 +69,23 @@
         </div>
     </div>
 
+    <!-- 🗂️ 지난 알림 보기 팝업 창 -->
     <div id="history-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn">&times;</span>
             <h3 style="margin-top: 0;">🗂️ 최근 알림 내역</h3>
             <div id="history-list">
-                </div>
+                <!-- 데이터가 채워지는 곳 -->
+            </div>
         </div>
     </div>
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const redirectTarget = urlParams.get('redirect');
-        
-        if (redirectTarget) {
-            document.getElementById('redirect-box').style.display = 'block';
-            setTimeout(() => {
-                window.location.href = decodeURIComponent(redirectTarget);
-            }, 800);
-        }
-    </script>
-
+    <!-- ⚙️ 파이어베이스 및 핵심 로직 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
-        import { getFirestore, doc, setDoc, arrayUnion, getDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js"; // 🚨 getDoc 추가됨
+        import { getFirestore, doc, setDoc, arrayUnion, getDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-analytics.js"; // 🚨 GA4 모듈
 
         const firebaseConfig = {
             apiKey: "AIzaSyDKUA3JA9HifyIAlIQ10cQhAt1HTdL16fc",
@@ -105,6 +100,24 @@
         const app = initializeApp(firebaseConfig);
         const messaging = getMessaging(app);
         const db = getFirestore(app);
+        const analytics = getAnalytics(app); // 🚨 GA4 엔진 시동
+
+        // 🚨 1. 워프(리다이렉트) 및 통계 기록 통합 로직
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectTarget = urlParams.get('redirect');
+        
+        if (redirectTarget) {
+            document.getElementById('redirect-box').style.display = 'block';
+            
+            // 앱을 통한 접속 트래픽 통계 기록!
+            logEvent(analytics, 'notice_warp_clicked', {
+                target_board: decodeURIComponent(redirectTarget)
+            });
+
+            setTimeout(() => {
+                window.location.href = decodeURIComponent(redirectTarget);
+            }, 800);
+        }
 
         onMessage(messaging, (payload) => {
             const { title, body, click_action } = payload.notification || {};
@@ -117,7 +130,7 @@
         const urlInput = document.getElementById('url-input');
         const nicknameInput = document.getElementById('nickname');
 
-        // 알림 받기 이벤트
+        // 🚨 2. 알림 받기 등록 이벤트
         btnAlert.addEventListener('click', async () => {
             const targetUrl = urlInput.value.trim();
             const nickname = nicknameInput.value.trim() || "익명 기기";
@@ -125,6 +138,12 @@
             if(!targetUrl || targetUrl === "https://") {
                 alert("올바른 URL 주소를 입력해 주세요.");
                 return;
+            }
+
+            // [핵심 방어코드] 카카오톡 등 인앱 브라우저 완벽 차단
+            if (!('Notification' in window)) {
+                alert("🚫 카카오톡 등 앱 내 브라우저에서는 알림을 받을 수 없습니다.\n\n우측 상단 메뉴(⋮)를 눌러 [다른 브라우저로 열기(크롬, 사파리)]를 선택해 주세요!");
+                return; 
             }
 
             try {
@@ -153,14 +172,18 @@
                         }, { merge: true });
 
                         alert(`[${nickname}] 이름으로 알림 등록이 완료되었습니다!`);
+                    } else {
+                        alert("토큰을 가져오지 못했습니다. 브라우저 설정을 확인해주세요.");
                     }
+                } else {
+                    alert("알림 권한이 거부되었습니다. 브라우저 설정에서 알림을 허용해주세요.");
                 }
             } catch (err) {
                 alert('등록 실패: ' + err.message);
             }
         });
 
-        // 🚨 모달(팝업) 관련 이벤트 처리
+        // 🚨 3. 지난 알림 보기 팝업(모달) 로직
         const btnHistory = document.getElementById('btn-history');
         const modal = document.getElementById('history-modal');
         const closeBtn = document.querySelector('.close-btn');
@@ -170,7 +193,6 @@
             const targetUrl = urlInput.value.trim();
             if(!targetUrl || targetUrl === "https://") return;
 
-            // 창을 열고 로딩 표시
             modal.style.display = 'block';
             historyList.innerHTML = '<p style="text-align:center; color:#666;">데이터를 불러오는 중입니다...</p>';
 
@@ -186,16 +208,14 @@
                     if (history.length === 0) {
                         historyList.innerHTML = '<p style="text-align:center; color:#666;">아직 수집된 알림 내역이 없습니다.</p>';
                     } else {
-                        // 가장 최근 알림이 맨 위로 오도록 정렬(역순)
                         history.sort((a, b) => b.id - a.id);
                         
-                        // HTML 리스트로 그려주기
                         historyList.innerHTML = history.map(item => {
-                            // 시간 예쁘게 포맷팅
                             const dateObj = new Date(item.timestamp);
                             const timeStr = `${dateObj.getMonth()+1}월 ${dateObj.getDate()}일 ${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
                             
                             return `
+                            <!-- 화면 깨짐 방지를 위해 window.open 새 창 열기 적용 완료 -->
                             <div class="history-item" onclick="window.open('${item.link}', '_blank')">
                                 <div class="history-title">${item.title}</div>
                                 <div class="history-meta">NO.${item.id} | 🕒 ${timeStr}</div>
@@ -211,12 +231,10 @@
             }
         });
 
-        // X 버튼 누르면 닫기
         closeBtn.addEventListener('click', () => {
             modal.style.display = 'none';
         });
 
-        // 팝업 바깥 까만 배경 누르면 닫기
         window.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.style.display = 'none';

@@ -196,7 +196,7 @@
                             const timeStr = `${dateObj.getMonth()+1}월 ${dateObj.getDate()}일 ${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
                             
                             return `
-                            <div class="history-item" onclick="window.location.href='${item.link}'">
+                            <div class="history-item" onclick="window.open('${item.link}', '_blank')">
                                 <div class="history-title">${item.title}</div>
                                 <div class="history-meta">NO.${item.id} | 🕒 ${timeStr}</div>
                             </div>

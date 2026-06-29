@@ -14,14 +14,13 @@ except Exception as e:
     print(f"❌ [SYSTEM] 파이어베이스 초기화 실패 마스터 키를 확인하세요: {e}")
 
 def get_inha_political_latest_data(url):
-    """클래스명(이름표)에 의존하지 않고, 테이블 뼈대 구조만으로 
-       순수 일반 공지사항 번호와 링크를 추출하는 강력한 파싱 함수"""
+    """일반 공지사항 번호, 링크, 그리고 '제목'까지 추출하는 함수"""
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     try:
         response = requests.get(url, headers=headers, timeout=10)
-        response.encoding = 'utf-8'  # 한글 깨짐 및 파싱 오류 방지
+        response.encoding = 'utf-8'  # 한글 깨짐 방지
         soup = BeautifulSoup(response.text, 'html.parser')
         
         rows = soup.select("tbody tr")
@@ -31,36 +30,44 @@ def get_inha_political_latest_data(url):
                 continue
                 
             num_text = tds[0].text.strip()
+            
             if num_text.isdigit():
                 a_tag = row.find("a")
                 if a_tag and a_tag.get("href"):
                     href_link = a_tag["href"]
                     full_link = urllib.parse.urljoin(url, href_link)
-                    return int(num_text), full_link
+                    
+                    # 🚨 [추가됨] a 태그 안에 있는 텍스트(제목)를 깔끔하게 추출합니다.
+                    title_text = a_tag.text.strip()
+                    
+                    # 번호, 링크, 제목 3가지를 묶어서 반환!
+                    return int(num_text), full_link, title_text
                     
     except Exception as e:
         print(f"❌ [CRAWL ERROR] 인하대 사이트 파싱 실패: {e}")
     
-    return None, None
+    # 실패 시 3개의 빈 값을 돌려줌
+    return None, None, None
 
-def send_multicast_push(tokens, notice_id, target_link):
+# 🚨 [수정됨] 매개변수로 notice_title을 추가로 받습니다.
+def send_multicast_push(tokens, notice_id, target_link, notice_title):
     if not tokens:
         print("💡 [FCM] 해당 주소를 구독 중인 기기 토큰이 없습니다. 발송을 생략합니다.")
         return
 
-    # 🚨 [핵심 변경] 아이폰 보안 우회를 위해 인하대 링크를 우리 앱 주소 뒤에 매달아서 포장!
     safe_target_link = urllib.parse.quote(target_link, safe='')
     app_url = f"https://notice-jet.vercel.app/?redirect={safe_target_link}"
 
     try:
         message = messaging.MulticastMessage(
             notification=messaging.Notification(
-                title="🏫 새로운 공지사항이 올라왔어요!",
-                body=f"등록하신 게시판에 새 글이 등록되었습니다. (글 번호: {notice_id})\n터치하면 공지사항으로 이동합니다."
+                # 🚨 [수정됨] 알림 제목과 내용에 크롤링한 진짜 제목을 넣습니다!
+                title="🏫 새 공지: " + notice_title,
+                body=f"글 번호: {notice_id} | 터치하여 공지사항으로 워프!"
             ),
             webpush=messaging.WebpushConfig(
                 fcm_options=messaging.WebpushFCMOptions(
-                    link=app_url  # Vercel 우회 주소를 도착지로 설정
+                    link=app_url 
                 )
             ),
             data={
@@ -98,18 +105,21 @@ def run_crawler():
         print(f"📊 [DB 상태] 기억하고 있는 마지막 번호: {last_saved_id}")
         
         if "inha.ac.kr" in target_url:
-            current_top_id, target_link = get_inha_political_latest_data(target_url)
+            # 🚨 [수정됨] 제목(notice_title) 변수도 함께 받아옵니다.
+            current_top_id, target_link, notice_title = get_inha_political_latest_data(target_url)
             print(f"🌐 [웹 상태] 현재 인하대 실제 최신 번호: {current_top_id}")
             
             if current_top_id:
                 if last_saved_id == 0 or current_top_id > last_saved_id:
                     print(f"🔥 [🔥변동 감지🔥] 새 글 발견! ({last_saved_id} -> {current_top_id})")
+                    print(f"📝 [글 제목] {notice_title}")
                     print(f"🔗 [이동 링크] {target_link}")
                     
                     doc.reference.update({"last_id": current_top_id})
                     print("💾 [DB UPDATE] 파이어베이스 Firestore에 최신 번호 갱신 완료")
                     
-                    send_multicast_push(tokens, current_top_id, target_link)
+                    # 🚨 [수정됨] 알림 발송 함수에 제목도 같이 던져줍니다.
+                    send_multicast_push(tokens, current_top_id, target_link, notice_title)
                 else:
                     print("✅ [변동 없음] 웹사이트 번호가 DB와 같거나 작습니다.")
             else:
